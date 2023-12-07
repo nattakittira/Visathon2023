@@ -1,0 +1,143 @@
+---
+title: "Visathon"
+date: "2023-04-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set up environment
+
+```{r}
+library(tidyverse)
+library(corrplot)
+library(scales)
+
+path <- 'progress_in_australian_regions_and_cities_2022_all_data.csv'
+
+raw_df <- read_csv(path)
+
+raw_df <- raw_df %>% 
+  filter(nchar(date) == 4 | str_detect(date,'1/06/2')) %>%
+  filter(str_detect(region_type, 'state')) %>%
+  mutate(date = substr(date,nchar(date)-3,nchar(date))) %>%
+  mutate(
+    region_name = case_when(
+      region_name == 'New South Wales' ~ 'NSW',
+      region_name == 'Victoria' ~ 'VIC',
+      region_name == 'Queensland' ~ 'QLD',
+      region_name == 'South Australia' ~ 'SA',
+      region_name == 'Western Australia' ~ 'WA',
+      region_name == 'Tasmania' ~ 'TAS',
+      region_name == 'Northern Territory' ~ 'NT',
+      region_name == 'Australian Capital Territory' ~ 'ACT',
+      region_name == 'Other Territories' ~ 'Other' 
+    )
+  )
+
+names(raw_df)[names(raw_df) == 'region_name'] <- 'Region'
+
+```
+
+
+```{r}
+
+# Plot by indicators
+plot_business <- raw_df %>% 
+  filter(str_detect(key,'C321_All_Data_actively_trading_businesses')) %>%
+  ggplot(aes(x=date,y=value,group=Region,colour=Region)) +
+  geom_line(linewidth=1) +  
+  xlab("Year") + 
+  ylab("Number of actively trading businesses") +
+  scale_y_continuous(labels = label_number(suffix = " k", scale=10^-3)) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="bottom") 
+plot_business
+
+plot_business_rate <- raw_df %>% 
+  filter(str_detect(key,'P213_All_Data_net business entry rate')) %>%
+  ggplot(aes(x=date,y=value,group=Region,colour=Region)) +
+  geom_line(linewidth=1) +
+  xlab("Year") + 
+  ylab("% Change in number of business") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="bottom")
+plot_business_rate
+
+plot_KIS <- raw_df %>% 
+  filter(str_detect(key,'C331_All_Data_knowledge-intensive service industries')) %>%
+  ggplot(aes(x=date,y=value,group=Region,colour=Region)) +
+  geom_line(linewidth=1) +
+  xlab("Year") + 
+  ylab("% of employed person") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="bottom")
+plot_KIS
+
+# END OF ECONOMIC INDICATOR
+
+# Well-being indicator
+
+plot_life_exp <- raw_df %>% 
+  filter(str_detect(key,'P111_All_Data_life_expectancy')) %>%
+  ggplot(aes(x=date,y=value,group=Region,colour=Region)) +
+  geom_line(linewidth=1) + 
+  xlab("Year") + 
+  ylab("Average life expectency") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="bottom") 
+plot_life_exp
+
+
+plot_suic <- raw_df %>% 
+  filter(str_detect(key,'P113_All_Data_suicide_rate')) %>%
+  ggplot(aes(x=date,y=value,group=Region,colour=Region)) +
+  geom_line(linewidth=1) +
+  xlab("Year") + 
+  ylab("Rate per 100,000 person") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="bottom") 
+plot_suic
+
+plot_psy <- raw_df %>% 
+  filter(str_detect(key,'P112_All_Data_prop_high_psychological_distress')) %>%
+  ggplot(aes(x=date,y=value,group=Region,colour=Region)) +
+  geom_line(linewidth=1) + 
+  xlab("Year") + 
+  ylab("% of persons aged 18 years and over") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="bottom") 
+plot_psy 
+
+# Correlation
+
+indicators <- c(#'C321_All_Data_actively_trading_businesses',
+               'P213_All_Data_net business entry rate',
+               'C331_All_Data_knowledge-intensive service industries',
+               'P111_All_Data_life_expectancy',
+               'P113_All_Data_suicide_rate'
+               #'P112_All_Data_prop_high_psychological_distress'
+               )
+
+coor_df <- raw_df %>%
+  filter(key %in% indicators) %>%
+  select(full_variable_name,Region,date,value) %>%
+  spread(full_variable_name,value) %>%
+  drop_na() 
+
+coor_df <- coor_df[,c(1,2,3,5,4,6)] # re arrange columns
+
+colnames(coor_df) <- c('Region','Year','Employment in KIS','Business entry rate','Life Expectancy','Suicide Rate')
+
+coor <- coor_df[-1:-2] %>% cor(method='pearson')
+
+col <- col<- colorRampPalette(c("#FFCD00", "#00843D"))(200)
+
+corrplot(coor, 
+         method="color", 
+         col=col, 
+         type='upper',
+         addCoef.col='black',
+         number.cex = 1,
+         tl.cex = 1,
+         tl.srt = 30,
+         tl.col = 'black'
+         )
+
+```
